@@ -23,7 +23,7 @@ sub run {
 
     my $tree = $self->get_tree_from_cached_url( $url, $cache_fn_suffix );
 
-    my $content = $tree->look_down('_tag', 'div', 'id', 'content' );
+    my $content = $tree->look_down('_tag', 'div', 'id', 'results' );
     return undef unless $content;
     return $content->as_HTML;
 }
