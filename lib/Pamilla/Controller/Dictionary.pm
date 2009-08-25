@@ -55,10 +55,10 @@ sub get_dict_html {
 
 
 
-sub save_new_word {
-    my ( $self, $c, $word, $timestamp, $data_dir ) = @_;
+sub save_new_text {
+    my ( $self, $c, $file_name, $text, $timestamp, $data_dir ) = @_;
 
-    my $fpath = $data_dir . 'data/dictionary.json';
+    my $fpath = $data_dir . 'data/' . $file_name;
 
     my $data = [];
 
@@ -72,7 +72,7 @@ sub save_new_word {
         $data = from_json( $json );
     }
 
-    push @$data, [ $word, $timestamp ];
+    push @$data, [ $text, $timestamp ];
 
     unless ( open($fh,'>:utf8', $fpath) ) {
         return 0;
@@ -90,23 +90,43 @@ sub save_new_word {
 sub process_text {
     my ( $self, $c, $data, $text, $timestamp, $data_dir ) = @_;
 
-    my $word = $text;
+    return 1 unless $text;
+
+    $text =~ s{\s+$}{}x;
+    $text =~ s{^\s+}{}x;
 
     # Probably hacking on code.
-    return 1 if $word =~ /\$/;
+    if ( $text =~ /\$/ ) {
+        $data->{html} = "text: '$text'<br />\n";
+        $data->{html} = "<br />\n";
+        $data->{html} .= '<div style="color:red">Warning: Shouldn\'t you disable dictionary.</div>';
+        return 1;
+    }
+
+    if ( length($text) > 250 ) {
+        $self->save_new_text( $c, 'dictionary-full_texts.json', $text, $timestamp, $data_dir );
+        $data->{html} .= '<div style="color:red">Full text saved.</div>';
+        return 1;
+    }
+
+    if ( length($text) > 25 ) {
+        $data->{html} = "text: '$text'<br />\n";
+        $data->{html} = "<br />\n";
+        $data->{html} .= '<div style="color:red">Warning: Too long word.</div>';
+        return 1;
+    }
+
+    my $word = $text;
 
     $word =~ s{ [\s\.\!\?\,\:\;\"]+$}{}x;
     $word =~ s{^[\s\.\!\?\,\:\;\"]+ }{}x;
     $word = lc($word);
 
-    return 1 unless $word;
-    return 1 if length($word) > 25;
-
     $data->{html} = "word: '$word'<br />\n";
     $data->{html} .= $self->get_dict_html( $c, $word );
     $c->log->info( substr( $data->{html}, 0, 100) );
 
-    $self->save_new_word( $c, $word, $timestamp, $data_dir );
+    $self->save_new_text( $c, 'dictionary.json', $word, $timestamp, $data_dir );
 
     return 1;
 }
