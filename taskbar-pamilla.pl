@@ -57,6 +57,8 @@ use Wx::Event qw(EVT_TASKBAR_LEFT_DOWN EVT_TASKBAR_RIGHT_DOWN);
 use Wx qw(wxTheClipboard wxDF_TEXT);
 use Wx::DND;
 
+use Win32::API 0.20;
+
 
 # Parameters: title, position, size
 sub new {
@@ -140,6 +142,15 @@ sub new {
             $this->PopupMenu( $menu );
         };
 
+
+        my $GetConsoleTitle = new Win32::API('kernel32', 'GetConsoleTitle', 'PN', 'N');
+        my $FindWindow = new Win32::API('user32', 'FindWindow', 'PP', 'N');
+        my $ShowWindow = new Win32::API('user32', 'ShowWindow', 'NN', 'N');
+
+        my $title = 'Pamilla';
+        my $hw = $FindWindow->Call( 0, $title );
+        $ShowWindow->Call( $hw, 0 ); # SW_HIDE
+
         $this->{selected_item} = @tb_items_order[0];
         my $sub_select_takbar = sub {
             my ( $sub_this, $event, $item_rawname ) = @_;
@@ -149,14 +160,26 @@ sub new {
                 wxTheClipboard->Open;
                 wxTheClipboard->SetData( $empty_tdobj );
                 wxTheClipboard->Close;
+
             }
+            if ( $item_rawname eq 'paused' ) {
+                $ShowWindow->Call( $hw, 0 ); # SW_HIDE
+            } else {
+                $ShowWindow->Call( $hw, 3 ); # SW_SHOWMAXIMIZED
+            }
+
             $this->{selected_item} = $item_rawname;
 
         };
 
+        my $sub_quit = sub {
+            $ShowWindow->Call( $hw, 0 ); # SW_HIDE
+            $this->Close();
+        };
+
         EVT_TASKBAR_LEFT_DOWN( $tmp, $click );
         EVT_TASKBAR_RIGHT_DOWN( $tmp, $click );
-        EVT_MENU( $tmp, $main::ID_QUIT, sub { $this->Close(); } );
+        EVT_MENU( $tmp, $main::ID_QUIT, $sub_quit );
 
         foreach my $item_name ( @tb_items_order ) {
             my $id = $tb_items->{$item_name}->{id};
