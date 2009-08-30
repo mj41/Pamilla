@@ -8,8 +8,8 @@ use FindBin qw($RealBin);
 use vars qw($ID_QUIT $ID_ABOUT $ID_LAST_USED);
 ( $ID_QUIT, $ID_ABOUT, $ID_LAST_USED ) = ( 10000 .. 10020 );
 
-use vars qw($CLIPBOADR_PATH);
-$CLIPBOADR_PATH =  $RealBin . '/../pamilla-data/';
+use vars qw($DATA_DIR);
+$DATA_DIR =  $RealBin . '/../pamilla-data/';
 
 # every program must have a Wx::App-derive class
 package MyApp;
@@ -155,6 +155,8 @@ sub new {
         my $sub_select_takbar = sub {
             my ( $sub_this, $event, $item_rawname ) = @_;
 
+            $this->log_event( 'sel_item', $item_rawname );
+
             if ( $item_rawname ne $this->{selected_item} ) {
                 my $empty_tdobj = Wx::TextDataObject->new( '' );
                 wxTheClipboard->Open;
@@ -189,8 +191,82 @@ sub new {
         }
     }
 
-
+    $this->log_start();
     return $this;
+}
+
+
+sub load_file {
+    my ( $this, $fpath ) = @_;
+
+    open( my $fh, '<', $fpath ) or die "Can't open file '$fpath' for read: $!";
+    local $/ = undef;
+    return <$fh>;
+}
+
+
+sub write_to_file {
+    my ( $this, $fpath, $content ) = @_;
+
+    my $fh;
+    open ( $fh, '>', $fpath ) || die "Can't open file '$fpath' for write: $!";
+    print $fh $content;
+    close $fh;
+    return 1;
+}
+
+
+sub add_item_to_log {
+    my ( $this, $new_item ) = @_;
+
+    my $fpath = $main::DATA_DIR . 'log.json';
+
+    my $data = undef;
+    if ( -f $fpath ) {
+        my $in_json_text = $this->load_file( $fpath );
+        $data = from_json( $in_json_text );
+    }
+
+    push @$data, $new_item;
+
+    my $json_text = to_json( $data );
+    $this->write_to_file( $fpath, $json_text );
+
+    return 1;
+}
+
+
+sub log_event {
+    my ( $this, $event_name, $item_rawname ) = @_;
+
+    my $new_item = [
+        time(),
+        $event_name,
+        $item_rawname
+    ];
+    return $this->add_item_to_log( $new_item );
+}
+
+
+sub log_start {
+    my ( $this ) = @_;
+
+    my $new_item = [
+        time(),
+        'start'
+    ];
+    return $this->add_item_to_log( $new_item );
+}
+
+
+sub log_stop {
+    my ( $this ) = @_;
+
+    my $new_item = [
+        time(),
+        'stop'
+    ];
+    return $this->add_item_to_log( $new_item );
 }
 
 
@@ -198,14 +274,9 @@ sub dump_to_file {
     my( $this, $data ) = @_;
 
     my $json_text = to_json( $data );
-    my $fpath = $main::CLIPBOADR_PATH . 'clipboard.json';
+    my $fpath = $main::DATA_DIR . 'clipboard.json';
 
-    my $fh;
-    open ( $fh, '>', $fpath ) || die "Can't open file '$fpath' for write: $!";
-    print $fh $json_text;
-    close $fh;
-
-
+    $this->write_to_file( $fpath, $json_text );
     return 1;
 }
 
@@ -271,6 +342,8 @@ sub OnQuit {
 
 sub OnClose {
   my $this = shift;
+
+  $this->log_stop();
 
   Wx::Log::SetActiveTarget( $this->{OLDLOG} );
   $this->{TASKBARICON}->Destroy
