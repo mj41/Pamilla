@@ -148,8 +148,14 @@ sub new {
         my $ShowWindow = new Win32::API('user32', 'ShowWindow', 'NN', 'N');
 
         my $title = 'Pamilla';
-        my $hw = $FindWindow->Call( 0, $title );
-        $ShowWindow->Call( $hw, 0 ); # SW_HIDE
+
+        my $get_window = sub {
+            return $FindWindow->Call( 0, $title );
+        };
+        my $hw = $get_window->();
+        if ( $hw ) {
+            $ShowWindow->Call( $hw, 0 ); # SW_HIDE
+        }
 
         $this->{selected_item} = @tb_items_order[0];
         my $sub_select_takbar = sub {
@@ -164,10 +170,14 @@ sub new {
                 wxTheClipboard->Close;
 
             }
-            if ( $item_rawname eq 'paused' ) {
-                $ShowWindow->Call( $hw, 0 ); # SW_HIDE
-            } else {
-                $ShowWindow->Call( $hw, 3 ); # SW_SHOWMAXIMIZED
+
+            my $hw = $get_window->();
+            if ( $hw ) {
+                if ( $item_rawname eq 'paused' ) {
+                    $ShowWindow->Call( $hw, 0 ); # SW_HIDE
+                } else {
+                    $ShowWindow->Call( $hw, 3 ); # SW_SHOWMAXIMIZED
+                }
             }
 
             $this->{selected_item} = $item_rawname;
